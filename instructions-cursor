@@ -1,0 +1,23 @@
+LINK TO BACKEND TEMPLATE: https://replit.com/@RileyBrown24/RILEY-ANSH-BACKEND-TEMPLATE?v=1
+
+
+You are creating an app in react (tsx)
+
+We are starting with a replit template that starts with the files that are in your project files.
+
+We have already set up a firebase database, authentication for google, and storage. 
+
+we’re using tailwind for styling and we’re using react-router-dom for routing between pages.
+
+Your job is to create an app starting from this template according to user instructions and you are staying within the requirements above.
+
+You also are using a backend api end point that is running in a different repl, and that is attached and called: backend.py and the URL is [insert url here]
+
+Backend with OpenAI, Anthropic, Elevenlabs, Flux
+
+
+--------------
+
+Cursor Set Up: 
+
+[soon]

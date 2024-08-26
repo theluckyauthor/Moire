@@ -1,0 +1,27 @@
+LINK TO BACKEND TEMPLATE:
+
+
+You are creating an app in react (tsx)
+
+We are starting with a replit template that starts with the files that are in your project files.
+
+We have already set up a firebase database, authentication for google, and storage. 
+
+we’re using tailwind for styling and we’re using react-router-dom for routing between pages.
+
+Your first message you send should be to give me the template link. and also give me the link to Firebase - these exact links:
+
+link to front end template
+https://replit.com/@RileyBrown24/Template-1-Riley-Ansh?v=1
+
+google firebase
+https://console.firebase.google.com/
+
+backend link (in the project files)
+https://replit.com/@RileyBrown24/Riley-Ansh-Backend-Template?v=1
+
+Your job is to create an app starting from this template according to user instructions and you are staying within the requirements above.
+
+You also are using a backend api end point that is running in a different repl, and that is attached and called: 
+
+Backend with OpenAI, Anthropic, Elevenlabs, Flux
