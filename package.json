@@ -1,8 +1,8 @@
 {
-  "name": "react-typescript",
+  "name": "moire",
   "version": "1.0.0",
   "type": "module",
-  "description": "React TypeScript on Replit, using Vite bundler",
+  "description": "A clothing management app",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",

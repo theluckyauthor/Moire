@@ -25,6 +25,15 @@ interface CalendarEntry {
   userId: string;
 }
 
+interface CalendarEvent {
+  id: string;
+  title: string;
+  start: Date;
+  end: Date;
+  outfitId: string;
+  color: string;
+}
+
 const localizer = momentLocalizer(moment);
 
 const Calendar: React.FC = () => {
@@ -134,8 +143,8 @@ const Calendar: React.FC = () => {
     }
   };
 
-  const handleRemoveOutfit = async (event: any, e: React.MouseEvent) => {
-    e.stopPropagation(); // Prevent event selection when clicking the delete button
+  const handleRemoveOutfit = async (event: CalendarEvent, e: React.MouseEvent) => {
+    e.stopPropagation();
     const user = auth.currentUser;
     if (!user) {
       console.error("User not authenticated");
@@ -170,9 +179,9 @@ const Calendar: React.FC = () => {
     }
   };
 
-  const calendarEvents = useMemo(() => {
+  const calendarEvents = useMemo<CalendarEvent[]>(() => {
     return entries
-      .map((entry) => {
+      .map((entry): CalendarEvent | null => {
         const outfit = outfits.find((o) => o.id === entry.outfitId);
         if (!outfit) return null; // Skip entries without a corresponding outfit
         return {
@@ -184,7 +193,7 @@ const Calendar: React.FC = () => {
           color: outfit.color || '#3174ad',
         };
       })
-      .filter(Boolean); // Remove null entries
+      .filter((event): event is CalendarEvent => event !== null);
   }, [entries, outfits]);
 
   const handleDateClick = (date: Date) => {
@@ -197,7 +206,7 @@ const Calendar: React.FC = () => {
     return outfits.filter(outfit => !showFavoritesOnly || outfit.favorite === true);
   }, [outfits, showFavoritesOnly]);
 
-  const EventComponent = ({ event }: { event: any }) => (
+  const EventComponent: React.FC<{ event: CalendarEvent }> = ({ event }) => (
     <div className="flex justify-between items-center w-full h-full p-1">
       <span className="truncate">{event.title}</span>
       <button
@@ -219,10 +228,10 @@ const Calendar: React.FC = () => {
           <BigCalendar
             localizer={localizer}
             events={calendarEvents}
-            startAccessor="start"
-            endAccessor="end"
+            startAccessor={(event: CalendarEvent) => event.start}
+            endAccessor={(event: CalendarEvent) => event.end}
             style={{ height: 700 }}
-            onSelectSlot={({ start }) => handleDateClick(start)}
+            onSelectSlot={({ start }) => handleDateClick(start as Date)}
             selectable
             views={['month']}
             defaultView="month"
@@ -233,7 +242,7 @@ const Calendar: React.FC = () => {
                   onClick={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
-                    handleDateClick(value);
+                    handleDateClick(value as Date);
                   }}
                 >
                   {children}
@@ -241,7 +250,7 @@ const Calendar: React.FC = () => {
               ),
               event: EventComponent,
             }}
-            eventPropGetter={(event) => ({
+            eventPropGetter={(event: CalendarEvent) => ({
               style: {
                 backgroundColor: event.color,
               },
