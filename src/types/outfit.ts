@@ -7,15 +7,15 @@ export interface ClothingItem {
 }
 
 export interface Outfit {
-    id: string;
-    name: string;
-    items: ClothingItem[];
-    favorite: boolean;
-    createdAt: Date;
-    imageUrl: string | null;
-    userId: string;
-    color: string;
-  }
+  id: string;
+  name: string;
+  favorite: boolean;
+  items: ClothingItem[];
+  createdAt: Date;
+  imageUrl: string | null;
+  userId: string;
+  color?: string;
+}
 
 export interface OutfitItemSummary {
   id: string;
