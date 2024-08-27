@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { firebaseService } from '../services/firebaseService';
 import { auth } from '../firebase';
 import { Outfit } from '../types/outfit';
+import { QueryDocumentSnapshot } from 'firebase/firestore';
 
 const ITEMS_PER_PAGE = 10;
 
@@ -9,7 +10,7 @@ export const useOutfits = () => {
   const [outfits, setOutfits] = useState<Outfit[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [lastVisible, setLastVisible] = useState<any>(null);
+  const [lastVisible, setLastVisible] = useState<QueryDocumentSnapshot | null>(null);
   const [hasMore, setHasMore] = useState(true);
 
   useEffect(() => {
@@ -22,30 +23,10 @@ export const useOutfits = () => {
 
     const fetchOutfits = async () => {
       try {
-        const outfitsQuery = query(
-          collection(db, "outfits"),
-          where("userId", "==", user.uid),
-          orderBy("createdAt", "desc"),
-          limit(ITEMS_PER_PAGE)
-        );
-
-        const snapshot = await getDocs(outfitsQuery);
-        const fetchedOutfits = snapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-          items: doc.data().items
-            .filter((item: any) => item && item.id)
-            .map((item: any) => ({
-              id: item.id,
-              name: item.name,
-              color: item.color || '#ccc',
-            })),
-          createdAt: doc.data().createdAt.toDate(),
-        })) as Outfit[];
-
-        setOutfits(fetchedOutfits);
-        setLastVisible(snapshot.docs[snapshot.docs.length - 1]);
-        setHasMore(snapshot.docs.length === ITEMS_PER_PAGE);
+        const result = await firebaseService.fetchOutfits(user.uid, ITEMS_PER_PAGE);
+        setOutfits(result.outfits);
+        setLastVisible(result.lastVisible);
+        setHasMore(result.hasMore);
         setLoading(false);
       } catch (err) {
         console.error("Error fetching outfits:", err);
@@ -65,31 +46,10 @@ export const useOutfits = () => {
       const user = auth.currentUser;
       if (!user) throw new Error("User not authenticated");
 
-      const outfitsQuery = query(
-        collection(db, "outfits"),
-        where("userId", "==", user.uid),
-        orderBy("createdAt", "desc"),
-        startAfter(lastVisible),
-        limit(ITEMS_PER_PAGE)
-      );
-
-      const snapshot = await getDocs(outfitsQuery);
-      const newOutfits = snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-        items: doc.data().items
-          .filter((item: any) => item && item.id)
-          .map((item: any) => ({
-            id: item.id,
-            name: item.name,
-            color: item.color || '#ccc',
-          })),
-        createdAt: doc.data().createdAt.toDate(),
-      })) as Outfit[];
-
-      setOutfits((prevOutfits) => [...prevOutfits, ...newOutfits]);
-      setLastVisible(snapshot.docs[snapshot.docs.length - 1]);
-      setHasMore(snapshot.docs.length === ITEMS_PER_PAGE);
+      const result = await firebaseService.fetchMoreOutfits(user.uid, ITEMS_PER_PAGE, lastVisible);
+      setOutfits((prevOutfits) => [...prevOutfits, ...result.outfits]);
+      setLastVisible(result.lastVisible);
+      setHasMore(result.hasMore);
     } catch (err) {
       console.error("Error loading more outfits:", err);
       setError("Failed to load more outfits. Please try again.");
