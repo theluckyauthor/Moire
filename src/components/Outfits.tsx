@@ -1,67 +1,91 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { User } from "firebase/auth";
 import { Link, useNavigate } from "react-router-dom";
+import { auth } from "../firebase";
 import { Heart, Plus, Calendar, ChevronDown, Search, Filter } from "lucide-react";
 import OutfitDetail from "./OutfitDetail";
-import { Outfit } from '../types/outfit';
-import { generateColorFromItems } from '../utils/colorUtils';
+import { Outfit, ClothingItem } from '../types/outfit';
 import { useOutfits } from '../hooks/useOutfits';
+import { generateColorFromItems } from '../utils/colorUtils';
 import { firebaseService } from '../services/firebaseService';
-import { auth } from '../firebase';
-import styles from '../styles/components/Outfits.module.css';
 
 const DEFAULT_COLOR = '#CCCCCC';
 
 const Outfits: React.FC = () => {
-  const { outfits, loading, error, hasMore, loadMoreOutfits } = useOutfits();
+  const { outfits, loading, error, hasMore, loadMoreOutfits, updateOutfit, deleteOutfit, toggleFavorite, setOutfits } = useOutfits();
   const [user, setUser] = useState<User | null>(null);
   const [selectedOutfit, setSelectedOutfit] = useState<Outfit | null>(null);
   const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState("");
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
 
-  React.useEffect(() => {
-    const unsubscribeAuth = auth.onAuthStateChanged(setUser);
+  useEffect(() => {
+    const unsubscribeAuth = auth.onAuthStateChanged((currentUser) => {
+      setUser(currentUser);
+    });
+
     return () => unsubscribeAuth();
   }, []);
 
-  const toggleFavorite = async (outfitId: string, currentFavorite: boolean) => {
-    try {
-      await firebaseService.updateOutfit(outfitId, { favorite: !currentFavorite });
-    } catch (error) {
-      console.error("Error toggling favorite:", error);
+  useEffect(() => {
+    const fetchFullOutfitDetails = async () => {
+      const updatedOutfits = await Promise.all(
+        outfits.map(async (outfit) => {
+          const fullOutfit = await firebaseService.getOutfit(outfit.id);
+          return fullOutfit;
+        })
+      );
+      // Update the outfits state with the full details
+      // You'll need to add a setOutfits function to your useOutfits hook
+      setOutfits(updatedOutfits);
+    };
+
+    if (outfits.length > 0) {
+      fetchFullOutfitDetails();
     }
-  };
+  }, [outfits]);
 
-  const handleOutfitClick = (outfit: Outfit) => {
-    setSelectedOutfit(outfit);
-  };
+  const handleOutfitClick = useCallback(async (outfit: Outfit) => {
+    try {
+      const fullOutfit = await firebaseService.getOutfit(outfit.id);
+      setSelectedOutfit(fullOutfit);
+    } catch (error) {
+      console.error("Error fetching full outfit details:", error);
+    }
+  }, []);
 
-  const handleCloseModal = () => {
+  const handleCloseModal = useCallback(() => {
     setSelectedOutfit(null);
-  };
+  }, []);
 
-  const handleUpdateOutfit = async (updatedOutfit: Outfit) => {
-    try {
-      await firebaseService.updateOutfit(updatedOutfit.id, updatedOutfit);
-      setSelectedOutfit(null);
-    } catch (error) {
-      console.error("Error updating outfit:", error);
-    }
-  };
+  const handleUpdateOutfit = useCallback(async (updatedOutfit: Outfit) => {
+    await updateOutfit(updatedOutfit);
+    setSelectedOutfit(null);
+  }, [updateOutfit]);
 
-  const handleDeleteOutfit = async (outfitId: string) => {
-    try {
-      await firebaseService.deleteOutfit(outfitId);
-      setSelectedOutfit(null);
-    } catch (error) {
-      console.error("Error deleting outfit:", error);
-    }
-  };
+  const handleDeleteOutfit = useCallback(async (outfitId: string) => {
+    await deleteOutfit(outfitId);
+    setSelectedOutfit(null);
+  }, [deleteOutfit]);
 
-  const handleAddToCalendar = (outfitId: string) => {
+  const handleAddOutfit = useCallback(() => {
+    navigate("/create-outfit");
+  }, [navigate]);
+
+  const handleToggleFavorite = useCallback(async (outfitId: string, currentFavorite: boolean) => {
+    await toggleFavorite(outfitId, currentFavorite);
+  }, [toggleFavorite]);
+
+  const handleLoadMore = useCallback(async () => {
+    setLoadingMore(true);
+    await loadMoreOutfits();
+    setLoadingMore(false);
+  }, [loadMoreOutfits]);
+
+  const handleAddToCalendar = useCallback((outfitId: string) => {
     navigate(`/calendar?outfitId=${outfitId}`);
-  };
+  }, [navigate]);
 
   const filteredOutfits = outfits.filter((outfit) => {
     const matchesSearch = outfit.name.toLowerCase().includes(searchTerm.toLowerCase());
@@ -71,108 +95,114 @@ const Outfits: React.FC = () => {
 
   if (!user) {
     return (
-      <div className={styles.profileContainer}>
-        <h2 className={styles.profileTitle}>Profile</h2>
+      <div className="profile p-4">
+        <h2 className="text-2xl font-bold mb-4 text-center">Profile</h2>
         <p>Please sign in to view your outfits.</p>
-        <Link to="/signin" className={styles.signInButton}>
+        <Link
+          to="/signin"
+          className="bg-blue-500 text-white px-4 py-2 rounded mt-4 inline-block"
+        >
           Sign In
         </Link>
       </div>
     );
   }
 
-  if (loading) {
-    return <div className={styles.loadingMessage}>Loading outfits...</div>;
+  if (loading && outfits.length === 0) {
+    return <div className="text-center py-8">Loading outfits...</div>;
   }
 
   if (error) {
-    return <div className={styles.errorMessage}>{error}</div>;
+    return <div className="text-center py-8 text-red-500">{error}</div>;
   }
 
   return (
-    <div className={styles.outfitsContainer}>
-      <h1 className={styles.title}>Your Outfits</h1>
-      <div className={styles.controlsContainer}>
-        <Link to="/create-outfit" className={styles.createOutfitButton}>
+    <div className="outfits p-4 max-w-4xl mx-auto mb-16">
+      <h1 className="text-3xl font-bold mb-6 text-center text-indigo-600">
+        Your Outfits
+      </h1>
+      <div className="mb-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+        <Link
+          to="/create-outfit"
+          className="w-full sm:w-auto inline-flex items-center px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition duration-200"
+        >
           <Plus size={20} className="mr-2" />
           Create New Outfit
         </Link>
-        <div className={styles.searchContainer}>
+        <div className="w-full sm:w-auto flex items-center gap-2">
           <div className="relative flex-grow">
             <input
               type="text"
               placeholder="Search outfits..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className={styles.searchInput}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
             />
             <Search size={20} className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
           </div>
           <button
             onClick={() => setShowFavoritesOnly(!showFavoritesOnly)}
-            className={`${styles.filterButton} ${
-              showFavoritesOnly ? styles.filterButtonActive : styles.filterButtonInactive
-            }`}
+            className={`p-2 rounded-lg ${
+              showFavoritesOnly ? "bg-yellow-400 text-white" : "bg-gray-200 text-gray-700"
+            } hover:bg-yellow-500 transition duration-200`}
           >
             <Filter size={20} />
           </button>
         </div>
       </div>
-      {loading ? (
-        <p className={styles.loadingMessage}>Loading outfits...</p>
-      ) : error ? (
-        <p className={styles.errorMessage}>{error}</p>
-      ) : filteredOutfits.length === 0 ? (
-        <p className={styles.noOutfitsMessage}>No outfits found. Try adjusting your search or filters.</p>
+      {filteredOutfits.length === 0 ? (
+        <p className="text-center py-4">No outfits found. Try adjusting your search or filters.</p>
       ) : (
-        <div className={styles.outfitGrid}>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filteredOutfits.map((outfit) => (
             <div
               key={outfit.id}
-              className={`${styles.outfitCard} ${outfit.favorite ? styles.outfitCardFavorite : ''}`}
+              className={`bg-white rounded-lg shadow-md overflow-hidden ${
+                outfit.favorite ? 'border-2 border-yellow-400' : ''
+              } hover:shadow-lg transition duration-200 cursor-pointer`}
               onClick={() => handleOutfitClick(outfit)}
             >
-              <div className={styles.outfitImageContainer}>
+              <div className="relative h-48">
                 {outfit.imageUrl ? (
                   <img
                     src={outfit.imageUrl}
                     alt={outfit.name}
-                    className={styles.outfitImage}
+                    className="w-full h-full object-cover"
                   />
                 ) : (
                   <div
-                    className={styles.outfitImage}
+                    className="w-full h-full"
                     style={{ backgroundColor: outfit.color || generateColorFromItems(outfit.items) || DEFAULT_COLOR }}
                   ></div>
                 )}
-                <div className={styles.outfitNameOverlay}>
-                  <h3 className={styles.outfitName}>{outfit.name}</h3>
+                <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-50 text-white p-2">
+                  <h3 className="font-semibold text-lg">{outfit.name}</h3>
                 </div>
               </div>
-              <div className={styles.outfitDetails}>
-                <div className={styles.itemColorContainer}>
-                  {outfit.items.slice(0, 5).map((item, index) => (
+              <div className="p-4">
+                <div className="flex flex-wrap gap-2 mb-2">
+                  {outfit.items && outfit.items.slice(0, 5).map((item, index) => (
                     <div
                       key={index}
-                      className={styles.itemColor}
-                      style={{ backgroundColor: item.color }}
+                      className="w-6 h-6 rounded-full"
+                      style={{ backgroundColor: item.color || DEFAULT_COLOR }}
                       title={item.name}
                     ></div>
                   ))}
-                  {outfit.items.length > 5 && (
-                    <div className={styles.itemCountBadge}>
+                  {outfit.items && outfit.items.length > 5 && (
+                    <div className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center text-xs font-bold">
                       +{outfit.items.length - 5}
                     </div>
                   )}
                 </div>
-                <div className={styles.outfitActions}>
+                <div className="flex justify-between items-center">
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
-                      toggleFavorite(outfit.id, outfit.favorite);
+                      handleToggleFavorite(outfit.id, outfit.favorite);
                     }}
-                    className={`${styles.favoriteButton} ${
-                      outfit.favorite ? styles.favoriteButtonActive : styles.favoriteButtonInactive
+                    className={`p-2 rounded-full ${
+                      outfit.favorite ? "text-yellow-500" : "text-gray-400"
                     }`}
                   >
                     <Heart size={20} />
@@ -182,7 +212,7 @@ const Outfits: React.FC = () => {
                       e.stopPropagation();
                       handleAddToCalendar(outfit.id);
                     }}
-                    className={styles.calendarButton}
+                    className="p-2 text-indigo-600 hover:text-indigo-800"
                   >
                     <Calendar size={20} />
                   </button>
@@ -194,11 +224,11 @@ const Outfits: React.FC = () => {
       )}
       {hasMore && (
         <button
-          onClick={loadMoreOutfits}
-          className={styles.loadMoreButton}
-          disabled={loading}
+          onClick={handleLoadMore}
+          className="mt-6 w-full py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition duration-200 flex items-center justify-center"
+          disabled={loadingMore}
         >
-          {loading ? (
+          {loadingMore ? (
             "Loading..."
           ) : (
             <>
