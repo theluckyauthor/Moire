@@ -1,0 +1,7 @@
+* On Calendar.ts the search bar should be integrated in the dropdown menu so that it can be used to search for outfits in the dropdown menu
+* On utils/colors.ts the colors that are being calculated all end up being brownish or grayish since we are mixing all the colors of the items in the outfit.
+* On the feed, when you click load more, the initial posts that are loaded are not being shown on the screen. 
+* Reduce a bit the size of the posts on the feed
+* After creating a post, redirect back to the feed instead of the home page
+* reorder the elements of the forms for creating an outfit and editing an outfit
+
