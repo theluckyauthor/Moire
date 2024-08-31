@@ -1,7 +1,7 @@
-import { collection, query, orderBy, onSnapshot, addDoc, where, getDocs, doc, updateDoc, deleteDoc, limit, startAfter, QueryDocumentSnapshot } from "firebase/firestore";
+import { collection, query, orderBy, onSnapshot, addDoc, where, getDocs, doc, updateDoc, deleteDoc, limit, startAfter, QueryDocumentSnapshot, getDoc } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { db, storage } from "../firebase";
-import { Outfit, ClothingItem } from '../types/outfit';
+import { Outfit, ClothingItem, OutfitItemSummary } from '../types/outfit';
 
 export const firebaseService = {
   // Outfits
@@ -68,35 +68,41 @@ export const firebaseService = {
 
   async updateOutfit(outfitId: string, updates: Partial<Outfit>) {
     const outfitRef = doc(db, "outfits", outfitId);
-    return updateDoc(outfitRef, updates);
+    const updateData: any = { ...updates };
+    
+    // Remove the 'items' field if it's undefined
+    if (updateData.items === undefined) {
+      delete updateData.items;
+    }
+    
+    // If items are provided, ensure they are just IDs
+    if (Array.isArray(updateData.items)) {
+      updateData.items = updateData.items.map((item: string | OutfitItemSummary) => 
+        typeof item === 'string' ? item : item.id
+      );
+    }
+
+    await updateDoc(outfitRef, updateData);
+    return this.getOutfit(outfitId);
   },
 
   async deleteOutfit(outfitId: string) {
     const outfitRef = doc(db, "outfits", outfitId);
-    return deleteDoc(outfitRef);
+    await deleteDoc(outfitRef);
   },
 
   // ClothingItems
-  async fetchClothingItems(userId: string) {
+  async fetchClothingItems(userId: string): Promise<ClothingItem[]> {
     const itemsQuery = query(
       collection(db, "clothingItems"),
       where("userId", "==", userId),
       orderBy("name", "asc")
     );
-    return new Promise((resolve, reject) => {
-      onSnapshot(itemsQuery, 
-        (snapshot) => {
-          const items = snapshot.docs.map((doc) => ({
-            id: doc.id,
-            ...doc.data(),
-          })) as ClothingItem[];
-          resolve(items);
-        },
-        (error) => {
-          reject(error);
-        }
-      );
-    });
+    const snapshot = await getDocs(itemsQuery);
+    return snapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    } as ClothingItem));
   },
   async addClothingItem(item: {
     userId: string;
@@ -120,6 +126,31 @@ export const firebaseService = {
       imageUrl,
       createdAt: new Date(),
     });
-  }
+  },
+
+  // New functions for OutfitDetail
+  async getOutfit(outfitId: string): Promise<Outfit> {
+    const outfitRef = doc(db, "outfits", outfitId);
+    const outfitDoc = await getDoc(outfitRef);
+    if (!outfitDoc.exists()) {
+      throw new Error("Outfit not found");
+    }
+    const outfitData = outfitDoc.data();
+    return {
+      id: outfitDoc.id,
+      ...outfitData,
+      items: await Promise.all(outfitData.items.map(async (itemId: string) => {
+        const itemDoc = await getDoc(doc(db, "clothingItems", itemId));
+        return { id: itemDoc.id, ...itemDoc.data() } as ClothingItem;
+      })),
+      createdAt: outfitData.createdAt.toDate(),
+    } as Outfit;
+  },
+
+  async uploadOutfitImage(outfitId: string, imageFile: File): Promise<string> {
+    const storageRef = ref(storage, `outfits/${outfitId}`);
+    await uploadBytes(storageRef, imageFile);
+    return getDownloadURL(storageRef);
+  },
 
 };
