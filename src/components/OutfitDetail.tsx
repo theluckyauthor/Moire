@@ -1,15 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { doc, updateDoc, deleteDoc, getDoc, getDocs, collection } from 'firebase/firestore';
-import { db } from '../firebase';
+import { useNavigate } from 'react-router-dom';
 import { X, Edit, Trash2, Save, Loader, Heart, Calendar, Plus, Minus } from 'lucide-react';
-import { Outfit, ClothingItem } from '../types/outfit';
-import { Link, useNavigate } from 'react-router-dom';
 import { ChromePicker } from 'react-color';
+import { Outfit, ClothingItem } from '../types/outfit';
 import { generateColorFromItems } from '../utils/colorUtils';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { storage } from '../firebase';
+import { firebaseService } from '../services/firebaseService';
+import styles from '../styles/components/OutfitDetail.module.css';
 
-const DEFAULT_COLOR = '#4F46E5'; // Indigo-600, adjust this to your app's default color
+const DEFAULT_COLOR = '#4F46E5';
 
 interface Props {
   outfit: Outfit;
@@ -21,58 +19,21 @@ interface Props {
 const OutfitDetail: React.FC<Props> = ({ outfit, onClose, onUpdate, onDelete }) => {
   const navigate = useNavigate();
   const [isEditing, setIsEditing] = useState(false);
-  const [editedOutfit, setEditedOutfit] = useState({
-    ...outfit,
-    color: outfit.color || generateColorFromItems(outfit.items) || DEFAULT_COLOR
-  });
+  const [editedOutfit, setEditedOutfit] = useState(outfit);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [outfitItems, setOutfitItems] = useState<ClothingItem[]>([]);
   const [availableItems, setAvailableItems] = useState<ClothingItem[]>([]);
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [imageFile, setImageFile] = useState<File | null>(null);
 
   useEffect(() => {
-    fetchItemDetails();
     fetchAvailableItems();
-  }, [outfit.items]);
-
-  const fetchItemDetails = async () => {
-    setLoading(true);
-    try {
-      const itemPromises = outfit.items.map(async (item) => {
-        if (typeof item === 'string') {
-          const itemDoc = await getDoc(doc(db, 'clothingItems', item));
-          if (itemDoc.exists()) {
-            return { id: itemDoc.id, ...itemDoc.data() } as ClothingItem;
-          }
-        } else {
-          return item as ClothingItem;
-        }
-        return null;
-      });
-
-      const fetchedItems = (await Promise.all(itemPromises)).filter((item): item is ClothingItem => item !== null);
-      setOutfitItems(fetchedItems);
-      setEditedOutfit(prev => ({ ...prev, items: fetchedItems }));
-    } catch (err) {
-      console.error("Error fetching item details:", err);
-      setError("Failed to load item details. Please try again.");
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, []);
 
   const fetchAvailableItems = async () => {
     try {
-      const itemsSnapshot = await getDocs(collection(db, 'clothingItems'));
-      const allItems = itemsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ClothingItem));
-      
-      setAvailableItems(allItems.filter(item => 
-        !editedOutfit.items.some(outfitItem => 
-          (typeof outfitItem === 'string' ? outfitItem : outfitItem.id) === item.id
-        )
-      ));
+      const items = await firebaseService.fetchClothingItems(outfit.userId);
+      setAvailableItems(items.filter(item => !editedOutfit.items.some(outfitItem => outfitItem.id === item.id)));
     } catch (err) {
       console.error("Error fetching available items:", err);
       setError("Failed to load available items. Please try again.");
@@ -114,32 +75,21 @@ const OutfitDetail: React.FC<Props> = ({ outfit, onClose, onUpdate, onDelete }) 
     }
   };
 
-  const uploadImage = async () => {
-    if (!imageFile) return null;
-    const storageRef = ref(storage, `outfits/${outfit.id}`);
-    await uploadBytes(storageRef, imageFile);
-    return getDownloadURL(storageRef);
-  };
-
   const handleSave = async () => {
     setLoading(true);
     setError(null);
     try {
       let imageUrl = editedOutfit.imageUrl;
       if (imageFile) {
-        imageUrl = await uploadImage();
+        imageUrl = await firebaseService.uploadOutfitImage(outfit.id, imageFile);
       }
-      const outfitRef = doc(db, 'outfits', outfit.id);
-      const updateData = {
-        name: editedOutfit.name,
-        favorite: editedOutfit.favorite,
-        items: editedOutfit.items.map(item => item.id),
-        color: editedOutfit.color,
-        imageUrl
+      const updatedOutfit: Outfit = {
+        ...editedOutfit,
+        imageUrl,
+        // Remove the mapping to item.id
       };
-      await updateDoc(outfitRef, updateData);
-      console.log('Saved color:', editedOutfit.color);
-      onUpdate({ ...editedOutfit, imageUrl });
+      await firebaseService.updateOutfit(outfit.id, updatedOutfit);
+      onUpdate(updatedOutfit);
       setIsEditing(false);
     } catch (error) {
       console.error("Error updating outfit:", error);
@@ -154,7 +104,7 @@ const OutfitDetail: React.FC<Props> = ({ outfit, onClose, onUpdate, onDelete }) 
       setLoading(true);
       setError(null);
       try {
-        await deleteDoc(doc(db, 'outfits', outfit.id));
+        await firebaseService.deleteOutfit(outfit.id);
         onDelete(outfit.id);
       } catch (error) {
         console.error("Error deleting outfit:", error);
