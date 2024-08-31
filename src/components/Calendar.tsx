@@ -15,7 +15,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { Calendar as BigCalendar, momentLocalizer } from "react-big-calendar";
 import moment from "moment";
 import "react-big-calendar/lib/css/react-big-calendar.css";
-import { X, Edit, Save, Search, Star } from "lucide-react";
+import { X, Edit, Save, Search, Star, Trash2 } from "lucide-react";
 import { Outfit } from '../types/outfit';
 
 interface CalendarEntry {
@@ -44,6 +44,7 @@ const Calendar: React.FC = () => {
   const [selectedEvent, setSelectedEvent] = useState<any | null>(null);
   const [editingOutfitId, setEditingOutfitId] = useState<string | null>(null);
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -203,8 +204,10 @@ const Calendar: React.FC = () => {
   };
 
   const filteredOutfits = useMemo(() => {
-    return outfits.filter(outfit => !showFavoritesOnly || outfit.favorite === true);
-  }, [outfits, showFavoritesOnly]);
+    return outfits
+      .filter(outfit => !showFavoritesOnly || outfit.favorite === true)
+      .filter(outfit => outfit.name.toLowerCase().includes(searchTerm.toLowerCase()));
+  }, [outfits, showFavoritesOnly, searchTerm]);
 
   const EventComponent: React.FC<{ event: CalendarEvent }> = ({ event }) => (
     <div className="flex justify-between items-center w-full h-full p-1">
@@ -277,6 +280,16 @@ const Calendar: React.FC = () => {
                   Favorites only
                 </label>
               </div>
+              <div className="relative mb-2">
+                <input
+                  type="text"
+                  placeholder="Search outfits..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full p-2 pl-8 border rounded"
+                />
+                <Search size={16} className="absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-400" />
+              </div>
               <select
                 value={selectedOutfitId || ''}
                 onChange={(e) => setSelectedOutfitId(e.target.value)}
@@ -291,12 +304,21 @@ const Calendar: React.FC = () => {
               </select>
               <button
                 onClick={() => selectedOutfitId && handleOutfitSelect(selectedOutfitId, selectedDate)}
-                className="w-full bg-indigo-500 text-white px-4 py-2 rounded flex items-center justify-center"
+                className="w-full bg-indigo-500 text-white px-4 py-2 rounded flex items-center justify-center mb-2"
                 disabled={!selectedOutfitId}
               >
                 <Save size={16} className="mr-2" />
                 Save
               </button>
+              {entries.some(e => e.date.toDateString() === selectedDate.toDateString()) && (
+                <button
+                  onClick={() => handleRemoveOutfit({ id: entries.find(e => e.date.toDateString() === selectedDate.toDateString())?.id || '', start: selectedDate, end: selectedDate } as CalendarEvent, new MouseEvent('click') as any)}
+                  className="w-full bg-red-500 text-white px-4 py-2 rounded flex items-center justify-center"
+                >
+                  <Trash2 size={16} className="mr-2" />
+                  Remove Outfit
+                </button>
+              )}
             </div>
           )}
         </div>
